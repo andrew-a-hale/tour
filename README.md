@@ -37,3 +37,7 @@ The program implements a `Game` class that:
 1. Calculates valid knight moves from any position
 2. Uses either DFS or Warnsdorff's algorithm to find a complete tour
 3. Returns the sequence of coordinates visited by the knight
+
+## TODO
+
+-- [] SAT Solver

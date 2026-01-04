@@ -153,6 +153,21 @@ def test_find_tour_sat_returns_solution():
     assert len(tour) == 25  # noqa: PLR2004
 
 
+def test_find_tour_linear_returns_solution():
+    game = Game(8, 8, (0, 0), Strategy.LINEAR)
+    _, tour = game.find_tour_linear()
+
+    visited = [tour[0]]
+    for prev, curr in itertools.pairwise(tour):
+        dx = abs(prev[0] - curr[0])
+        dy = abs(prev[1] - curr[1])
+        assert dx + dy == 3  # noqa: PLR2004
+        assert curr not in visited
+        visited.append(curr)
+
+    assert len(tour) == 64  # noqa: PLR2004
+
+
 @pytest.mark.parametrize(
     ("width", "height", "point", "expected"),
     [

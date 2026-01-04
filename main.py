@@ -1,6 +1,7 @@
 import argparse
 import enum
 
+import xpress as xp
 from z3 import Distinct, Int, Or, Solver, sat
 
 MOVES = {
@@ -19,6 +20,7 @@ class Strategy(enum.Enum):
     DFS = 1
     WARNSDORFF = 2
     SAT = 3
+    LINEAR = 4
 
 
 class Game:
@@ -146,6 +148,10 @@ class Game:
                 )
             )
 
+            for j in range(self.total_cells):
+                if i != j:
+                    solver.add(x[i] != x[j])
+
         tour = []
         if solver.check() == sat:
             model = solver.model()
@@ -155,6 +161,59 @@ class Game:
             tour = [self.coord_int_to_tuple(tour[x]) for x in range(len(tour))]
 
         return pos, tour
+
+    def find_tour_linear(self) -> tuple[tuple[int, int], list[tuple[int, int]]]:
+        # construct graph as adj matrix
+        graph = {
+            c: [
+                self.coord_tuple_to_int(x)
+                for x in self.valid_moves(self.coord_int_to_tuple(c), [])
+            ]
+            for c in range(self.total_cells)
+        }
+
+        problem = xp.problem()
+        edges = {}
+
+        for i in range(self.total_cells):
+            for j in graph[i]:
+                edges[(i, j)] = problem.addVariable(
+                    name=f"e_{i}_{j}", vartype=xp.binary
+                )
+
+        for i in range(self.total_cells):
+            ins = [v for k, v in edges.items() if k[0] == i]
+            outs = [v for k, v in edges.items() if k[1] == i]
+            problem.addConstraint(xp.Sum(ins) == 1)
+            problem.addConstraint(xp.Sum(outs) == 1)
+
+        x = [
+            problem.addVariable(name=f"x_{i}", vartype=xp.integer)
+            for i in range(self.total_cells)
+        ]
+        problem.addConstraint(x[0] == 0)
+
+        for i, j in edges:  # noqa: PLC0206
+            if j == 0:
+                continue
+
+            problem.addConstraint(
+                x[j] + self.total_cells * (j == 0)
+                <= x[i] + 1 - self.total_cells * (edges[(i, j)] - 1)
+            )
+            problem.addConstraint(
+                x[j] + self.total_cells * (j == 0)
+                >= x[i] + 1 + self.total_cells * (edges[(i, j)] - 1)
+            )
+
+        problem.solve()
+
+        tour = list(map(int, problem.getSolution()[-self.total_cells :]))
+        tour = {p: i for i, p in enumerate(tour)}  # invert
+        # index for knight move
+        tour = [self.coord_int_to_tuple(tour[x]) for x in range(len(tour))]
+
+        return (0, 0), tour
 
     def run(
         self,
@@ -170,6 +229,9 @@ class Game:
 
             case Strategy.SAT:
                 return self.find_tour_sat(pos)
+
+            case Strategy.LINEAR:
+                return self.find_tour_linear()
 
 
 def main():
@@ -188,7 +250,7 @@ def main():
     )
     args = parser.parse_args()
 
-    game = Game(args.width, args.height, (1, 3), Strategy.WARNSDORFF)
+    game = Game(args.width, args.height, (0, 0), Strategy.LINEAR)
     _, tour = game.run(game.start, [game.start])
     print(tour)  # noqa: T201
 

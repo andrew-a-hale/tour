@@ -182,10 +182,15 @@ class Game:
                 )
 
         for i in range(self.total_cells):
-            ins = [v for k, v in edges.items() if k[0] == i]
-            outs = [v for k, v in edges.items() if k[1] == i]
-            problem.addConstraint(xp.Sum(ins) == 1)
-            problem.addConstraint(xp.Sum(outs) == 1)
+            ins = [v for k, v in edges.items() if k[1] == i]
+            outs = [v for k, v in edges.items() if k[0] == i]
+
+            if i == 0:  # start node: 1 out, 0 in
+                problem.addConstraint(xp.Sum(ins) == 0)
+                problem.addConstraint(xp.Sum(outs) == 1)
+            else:  # all other nodes: 1 in, at most 1 out
+                problem.addConstraint(xp.Sum(ins) == 1)
+                problem.addConstraint(xp.Sum(outs) <= 1)
 
         x = [
             problem.addVariable(name=f"x_{i}", vartype=xp.integer)
@@ -197,13 +202,10 @@ class Game:
             if j == 0:
                 continue
 
+            edge_var = edges[(i, j)]
+            problem.addConstraint(x[j] <= x[i] + 1 + self.total_cells * (1 - edge_var))
             problem.addConstraint(
-                x[j] + self.total_cells * (j == 0)
-                <= x[i] + 1 - self.total_cells * (edges[(i, j)] - 1)
-            )
-            problem.addConstraint(
-                x[j] + self.total_cells * (j == 0)
-                >= x[i] + 1 + self.total_cells * (edges[(i, j)] - 1)
+                x[j] >= x[i] + 1 - self.total_cells * (j == 0) * (1 - edge_var)
             )
 
         problem.solve()
